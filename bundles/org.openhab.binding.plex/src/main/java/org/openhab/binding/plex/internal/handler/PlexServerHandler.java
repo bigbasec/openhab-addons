@@ -151,7 +151,8 @@ public class PlexServerHandler extends BaseBridgeHandler {
                     if (playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()) != null) { // if we have a player
                                                                                                   // configured, update
                                                                                                   // it
-                        tmpMeta.setArt(plexAPIConnector.getArtURL(tmpMeta.getArt()));
+                        tmpMeta.setArt(plexAPIConnector.getURL(tmpMeta.getArt()));
+                        tmpMeta.setThumb(plexAPIConnector.getURL(tmpMeta.getThumb()));
                         playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()).refreshSessionData(tmpMeta);
                         playerActiveCount++;
                     }

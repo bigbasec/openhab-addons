@@ -111,7 +111,7 @@ public class PlexApiConnector {
      * @param url The url portion that is returned from the sessions call
      * @return the completed url that will be usable
      */
-    public String getArtURL(String url) {
+    public String getURL(String url) {
         String artURL = "http://" + connProps.getHost() + ":"
                 + String.valueOf(connProps.getPort() + url + "?X-Plex-Token=" + connProps.getToken());
         return artURL;

@@ -29,6 +29,8 @@ public class PlexSession {
 
     private String thumb;
 
+    private String art;
+
     private long viewOffset;
 
     private String type;
@@ -124,6 +126,14 @@ public class PlexSession {
 
     public void setDuration(long duration) {
         this.duration = duration;
+    }
+
+    public String getArt() {
+        return art;
+    }
+
+    public void setArt(String art) {
+        this.art = art;
     }
 
     private void updateProgress() {

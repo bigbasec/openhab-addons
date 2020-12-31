@@ -114,7 +114,8 @@ public class PlexPlayerHandler extends BaseThingHandler {
         currentSessionData.setViewOffset(sessionData.getViewOffset());
         currentSessionData.setTitle(sessionData.getTitle());
         currentSessionData.setType(sessionData.getType());
-        currentSessionData.setThumb(sessionData.getArt());
+        currentSessionData.setThumb(sessionData.getThumb());
+        currentSessionData.setArt(sessionData.getArt());
         currentSessionData.setLocal(sessionData.getPlayer().getLocal());
         foundInSession = true;
         updateStatus(ThingStatus.ONLINE);
@@ -133,6 +134,8 @@ public class PlexPlayerHandler extends BaseThingHandler {
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_TYPE),
                 new StringType(String.valueOf(currentSessionData.getType())));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_ART),
+                new StringType(String.valueOf(currentSessionData.getArt())));
+        updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_THUMB),
                 new StringType(String.valueOf(currentSessionData.getThumb())));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_PROGRESS),
                 new StringType(String.valueOf(currentSessionData.getProgress())));
