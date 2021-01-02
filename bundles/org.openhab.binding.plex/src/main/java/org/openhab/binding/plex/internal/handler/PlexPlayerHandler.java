@@ -79,7 +79,7 @@ public class PlexPlayerHandler extends BaseThingHandler {
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         // Readonly, we don't have any channels
-        logger.warn("Handling command '{}' for {}", command, channelUID);
+        // logger.warn("Handling command '{}' for {}", command, channelUID);
     }
 
     /**
@@ -126,7 +126,7 @@ public class PlexPlayerHandler extends BaseThingHandler {
      */
     public void updateChannels() {
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_STATE),
-                new StringType(String.valueOf(currentSessionData.getState())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getState() : "Stopped")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_POWER),
                 new StringType(String.valueOf(foundInSession ? "ON" : "OFF")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_TITLE),

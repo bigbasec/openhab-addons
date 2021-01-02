@@ -95,7 +95,7 @@ public class PlexServerHandler extends BaseBridgeHandler {
      */
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        logger.warn("Handling command '{}' for {}", command, channelUID);
+        // logger.warn("Handling command '{}' for {}", command, channelUID);
         if (getThing().getStatus() != ThingStatus.ONLINE) {
             logger.debug("PLEX is offline, ignoring command {} for channel {}", command, channelUID);
             return;
