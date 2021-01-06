@@ -82,6 +82,10 @@ public class PlexServerConfiguration {
         this.scheme = scheme;
     }
 
+    public String getSchemeWS() {
+        return this.scheme.equals("http") ? "ws" : "wss";
+    }
+
     public boolean hasToken() {
         return !StringUtils.isBlank(getToken());
     }

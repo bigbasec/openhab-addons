@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  * @author Brian Homeyer - Initial contribution
  */
 @NonNullByDefault
-public class PlexServerHandler extends BaseBridgeHandler {
+public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateListener {
 
     private final Logger logger = LoggerFactory.getLogger(PlexServerHandler.class);
     private final HttpClient httpClient;
@@ -59,17 +59,15 @@ public class PlexServerHandler extends BaseBridgeHandler {
     private final Map<String, PlexPlayerHandler> playerHandlers = new ConcurrentHashMap<>();
 
     private @Nullable PlexServerConfiguration plexConnectionProps;
-    private PlexApiConnector plexAPIConnector;
+    private @Nullable PlexApiConnector plexAPIConnector;
 
     private @Nullable ScheduledFuture<?> pollingJob;
 
     public PlexServerHandler(Bridge thing, HttpClient httpClient,
             PlexStateDescriptionOptionProvider stateDescriptionProvider) {
         super(thing);
-        PlexServerConfiguration plexConnectionProps = new PlexServerConfiguration(); // dummy to pass test
         this.httpClient = httpClient;
         this.stateDescriptionProvider = stateDescriptionProvider;
-        this.plexAPIConnector = new PlexApiConnector(plexConnectionProps, httpClient);
     }
 
     /**
@@ -78,16 +76,41 @@ public class PlexServerHandler extends BaseBridgeHandler {
      */
     @Override
     public void initialize() {
-        PlexServerConfiguration plexConnectionProps = getConfigAs(PlexServerConfiguration.class);
-        final @Nullable String host = plexConnectionProps.host;
-        if (host != null && !EMPTY.equals(host)) {
-            this.plexAPIConnector = new PlexApiConnector(plexConnectionProps, httpClient);
+        PlexServerConfiguration config = getConfigAs(PlexServerConfiguration.class);
+        if (config.host != null && !EMPTY.equals(config.host)) { // Check if a hostname is set
+            plexAPIConnector = new PlexApiConnector(config, httpClient);
         } else {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Host must be specified");
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "Host must be specified, check configuration");
             return;
         }
-        plexAPIConnector.checkConnection();
+        if (EMPTY.equals(config.getToken())) {
+            // No token is set by config, let's see if we can fetch one from username/password
+            logger.warn("Token is not set, trying to fetch one");
+            if ((EMPTY.equals(config.getUsername()) || EMPTY.equals(config.getPassword()))) {
+                logger.warn("Username, password and Token is not set, unable to connect to PLEX without. ");
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                        "Username, password and Token is not set, unable to connect to PLEX without. ");
+                return;
+            } else {
+                if (!plexAPIConnector.getToken()) {
+                    logger.warn("Token was not set.   Unable to login to PLEX with given username/password");
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                            "Token was not set.   Unable to login to PLEX with given username/password");
+                    return;
+                }
+            }
+        }
+        if (!plexAPIConnector.getApi()) {
+            logger.warn("Unable to fetch API, token may be wrong?  ");
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "Unable to fetch API, token may be wrong?");
+            return;
+        }
         onUpdate();
+        plexAPIConnector.registerListener(this);
+        plexAPIConnector.connect();
+
     }
 
     /**
@@ -126,6 +149,18 @@ public class PlexServerHandler extends BaseBridgeHandler {
         String playerId = (String) childThing.getConfiguration().get(CONFIG_PLAYER_ID);
         playerHandlers.remove(playerId);
         logger.warn("Bridge: Monitor handler was disposed for {} with id {}", childThing.getUID(), playerId);
+    }
+
+    /**
+     * Basically a callback method for the websocket handling
+     */
+    @Override
+    public void onItemStatusUpdate(String sessionKey, String state) {
+        for (Map.Entry<String, PlexPlayerHandler> entry : playerHandlers.entrySet()) {
+            if (entry.getValue().getSessionKey().equals(sessionKey)) {
+                entry.getValue().updateStateChannel(state);
+            }
+        }
     }
 
     /**
@@ -206,6 +241,7 @@ public class PlexServerHandler extends BaseBridgeHandler {
     @Override
     public void dispose() {
         logger.debug("Disposing PLEX Bridge Handler.");
+        plexAPIConnector.dispose();
         if (pollingJob != null && !pollingJob.isCancelled()) {
             pollingJob.cancel(true);
             pollingJob = null;

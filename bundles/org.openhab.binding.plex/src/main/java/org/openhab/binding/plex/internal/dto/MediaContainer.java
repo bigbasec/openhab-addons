@@ -60,7 +60,8 @@ public class MediaContainer {
         private long viewOffset;
         @XStreamAsAttribute
         private String type;
-
+        @XStreamAsAttribute
+        private String sessionKey;
         @XStreamAlias("Media")
         private Media media;
         @XStreamAlias("Player")
@@ -104,6 +105,14 @@ public class MediaContainer {
 
         public void setArt(String art) {
             this.art = art;
+        }
+
+        public String getSessionKey() {
+            return sessionKey;
+        }
+
+        public void setSessionKey(String sessionKey) {
+            this.sessionKey = sessionKey;
         }
 
         public class Player {

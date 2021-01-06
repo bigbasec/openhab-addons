@@ -14,22 +14,39 @@ package org.openhab.binding.plex.internal.handler;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Base64;
 import java.util.Properties;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.http.HttpHeader;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.websocket.api.Session;
+import org.eclipse.jetty.websocket.api.annotations.OnWebSocketClose;
+import org.eclipse.jetty.websocket.api.annotations.OnWebSocketConnect;
+import org.eclipse.jetty.websocket.api.annotations.OnWebSocketError;
+import org.eclipse.jetty.websocket.api.annotations.OnWebSocketMessage;
+import org.eclipse.jetty.websocket.api.annotations.WebSocket;
+import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
+import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.openhab.binding.plex.internal.config.PlexServerConfiguration;
 import org.openhab.binding.plex.internal.dto.MediaContainer;
 import org.openhab.binding.plex.internal.dto.MediaContainer.Device;
 import org.openhab.binding.plex.internal.dto.MediaContainer.Device.Connection;
+import org.openhab.binding.plex.internal.dto.NotificationContainer;
 import org.openhab.binding.plex.internal.dto.User;
 import org.openhab.core.io.net.http.HttpUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.Gson;
 import com.thoughtworks.xstream.XStream;
 import com.thoughtworks.xstream.io.xml.StaxDriver;
 
@@ -45,34 +62,28 @@ public class PlexApiConnector {
     private static final String SIGNIN_URL = "https://plex.tv/users/sign_in.xml";
     private static final String CLIENT_ID = "928dcjhd-91ka-la91-md7a-0msnan214563";
     private static final String API_URL = "https://plex.tv/api/resources?includeHttps=1";
-
+    private WebSocketClient wsClient;
+    private PlexSocket PlexSocket;
     private final HttpClient httpClient;
     private final PlexServerConfiguration connProps;
     private final Logger logger = LoggerFactory.getLogger(PlexApiConnector.class);
+    private CopyOnWriteArraySet<PlexUpdateListener> listeners = new CopyOnWriteArraySet<>();
+    private @Nullable PlexUpdateListener listener;
 
     private final XStream xStream = new XStream(new StaxDriver());
+    private Gson GSON = new Gson();
+    private boolean isShutDown = false;
+
+    private @Nullable ScheduledFuture<?> socketReconnect;
+    private @Nullable ScheduledExecutorService scheduler;
+    private @Nullable URI uri;
 
     public PlexApiConnector(PlexServerConfiguration connProps, HttpClient httpClient) {
-
         this.connProps = connProps;
         this.httpClient = httpClient;
+        wsClient = new WebSocketClient();
+        PlexSocket = new PlexSocket();
         setupXstream();
-    }
-
-    /**
-     * Check to make sure we have a valid token or username/password and that the Api is
-     * accessible.
-     */
-    public void checkConnection() {
-        if (!connProps.hasToken()) {
-            logger.debug("No X-Token set, trying to get a token from username/password");
-            connProps.setToken(getToken());
-        } else {
-            getApi();
-        }
-        if (connProps.hasToken()) {
-            getApi();
-        }
     }
 
     /**
@@ -95,7 +106,7 @@ public class PlexApiConnector {
      */
     public @Nullable MediaContainer getSessionData() {
         try {
-            String url = "http://" + connProps.getHost() + ":" + String.valueOf(connProps.getPort())
+            String url = connProps.getScheme() + "://" + connProps.getHost() + ":" + String.valueOf(connProps.getPort())
                     + "/status/sessions";
             MediaContainer mediaContainer = doHttpRequest("POST", url, getClientHeaders(), MediaContainer.class);
             return mediaContainer;
@@ -112,7 +123,7 @@ public class PlexApiConnector {
      * @return the completed url that will be usable
      */
     public String getURL(String url) {
-        String artURL = "http://" + connProps.getHost() + ":"
+        String artURL = connProps.getScheme() + "://" + connProps.getHost() + ":"
                 + String.valueOf(connProps.getPort() + url + "?X-Plex-Token=" + connProps.getToken());
         return artURL;
     }
@@ -122,7 +133,7 @@ public class PlexApiConnector {
      *
      * @return
      */
-    public String getToken() {
+    public boolean getToken() {
         try {
             String url = SIGNIN_URL;
             String authString = Base64.getEncoder()
@@ -132,39 +143,44 @@ public class PlexApiConnector {
             User user = doHttpRequest("POST", url, headers, User.class);
             if (user != null) {
                 logger.warn("PLEX login successful using username/password");
-                return user.getAuthenticationToken();
+                connProps.setToken(user.getAuthenticationToken());
+                return true;
             } else {
                 logger.warn("Invalid credentials for Plex account, please check config");
+                return false;
             }
         } catch (Exception e) {
-            logger.warn("An exception occurred while fetching auth token:'{}'", e.getMessage());
+            logger.warn("An exception occurred while fetching auth token:'{}:{}'", e.getMessage(), e);
         }
-        return "";
+        return false;
     }
 
     /**
      * This method will get the Api information from the PLEX servers.
      */
-    public void getApi() {
+    public boolean getApi() {
         try {
             String url = API_URL;
             MediaContainer api = doHttpRequest("GET", url, getClientHeaders(), MediaContainer.class);
             if (api != null) {
                 for (Device tmpDevice : api.getDevice()) {
-                    for (Connection tmpConn : tmpDevice.getConnection()) {
-                        if (connProps.host.equals(tmpConn.getAddress())) {
-                            connProps.setScheme(tmpConn.getProtocol());
-                            logger.debug("Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
+                    if (tmpDevice.getConnection() != null) {
+                        for (Connection tmpConn : tmpDevice.getConnection()) {
+                            if (connProps.host.equals(tmpConn.getAddress())) {
+                                connProps.setScheme(tmpConn.getProtocol());
+                                logger.debug(
+                                        "Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
+                                return true;
+                            }
                         }
                     }
                 }
-            } else {
-                logger.warn("Unable to locate configured host connection protocol.  Defaulting to HTTP.");
-                connProps.setScheme("http");
+                return false;
             }
         } catch (Exception e) {
-            logger.warn("An exception occurred while fetching auth token:'{}'", e.getMessage());
+            logger.warn("An exception occurred while fetching API :'{}:{}'", e.getMessage(), e);
         }
+        return false;
     }
 
     /**
@@ -214,4 +230,122 @@ public class PlexApiConnector {
         }
         return headers;
     }
+
+    /**
+     * Register callback to PlexServerHandler
+     *
+     * @param listener function to call
+     */
+    public void registerListener(PlexUpdateListener listener) {
+        this.listener = listener;
+    }
+
+    /**
+     * Dispose method, cleans up the websocket starts the reconnect logic
+     */
+    public void dispose() {
+        isShutDown = true;
+        try {
+            wsClient.stop();
+            ScheduledFuture<?> mySocketReconnect = socketReconnect;
+            if (mySocketReconnect != null) {
+                mySocketReconnect.cancel(true);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not stop webSocketClient,  message {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Connect to the websocket
+     */
+    public void connect() {
+        SslContextFactory sslContextFactory = new SslContextFactory();
+        sslContextFactory.setEndpointIdentificationAlgorithm(null);
+        try {
+            wsClient = new WebSocketClient(sslContextFactory);
+            uri = new URI(connProps.getSchemeWS() + "://" + connProps.getHost()
+                    + ":32400/:/websockets/notifications?X-Plex-Token=" + connProps.getToken()); // WS_ENDPOINT_TOUCHWAND);
+        } catch (URISyntaxException e) {
+            logger.warn("URI not valid {} message {}", uri, e.getMessage());
+            return;
+        }
+
+        // wsClient.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        wsClient.setConnectTimeout(2000);
+        ClientUpgradeRequest request = new ClientUpgradeRequest();
+        try {
+            wsClient.start();
+            wsClient.connect(PlexSocket, uri, request);
+        } catch (IOException e) {
+            logger.warn("Could not connect webSocket URI {} message {}:{}", uri, e.getMessage(), e);
+        } catch (Exception e) {
+            logger.warn("Could not connect webSocket URI {} message {}:{}", uri, e.getMessage(), e);
+            return;
+        }
+    }
+
+    /**
+     * PlexSocket class to handle the websocket connection to the PLEX server
+     */
+    @WebSocket(maxIdleTime = 10000) // WEBSOCKET_IDLE_TIMEOUT_MS)
+    public class PlexSocket {
+        @OnWebSocketClose
+        public void onClose(int statusCode, String reason) {
+            logger.debug("Connection closed: {} - {}", statusCode, reason);
+
+            if (!isShutDown) {
+                logger.debug("Plex websocket closed - reconnecting");
+                asyncWeb();
+            }
+
+        }
+
+        @OnWebSocketConnect
+        public void onConnect(Session session) {
+            logger.debug("Plex Socket connected to ");
+            try {
+                logger.debug("Connected to PLEX websocket");
+            } catch (Exception e) { // was IOExcept
+                logger.debug("onConnect : {}", e.getMessage());
+            }
+        }
+
+        @OnWebSocketMessage
+        public void onMessage(String msg) {
+            NotificationContainer notification = GSON.fromJson(msg, NotificationContainer.class);
+            if (notification != null) {
+                if (notification.getNotificationContainer().getType().equals("playing")) {
+                    if (listener != null) {
+                        listener.onItemStatusUpdate(
+                                notification.getNotificationContainer().getPlaySessionStateNotification().get(0)
+                                        .getSessionKey(),
+                                notification.getNotificationContainer().getPlaySessionStateNotification().get(0)
+                                        .getState());
+                    }
+                }
+            }
+        }
+
+        @OnWebSocketError
+        public void onError(Throwable cause) {
+            logger.warn("WebSocket Error: {}", cause.getMessage());
+
+            if (!isShutDown) {
+                logger.debug("WebSocket onError - reconnecting");
+                asyncWeb();
+            }
+
+        }
+
+        private void asyncWeb() {
+            ScheduledFuture<?> mySocketReconnect = socketReconnect;
+            if (mySocketReconnect == null || mySocketReconnect.isDone()) {
+                socketReconnect = scheduler.schedule(PlexApiConnector.this::connect, 5, TimeUnit.SECONDS); // WEBSOCKET_RECONNECT_INTERVAL_SEC,
+
+            }
+
+        }
+    }
+
 }

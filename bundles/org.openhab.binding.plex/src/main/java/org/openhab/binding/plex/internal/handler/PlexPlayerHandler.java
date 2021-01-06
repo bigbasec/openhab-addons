@@ -92,6 +92,10 @@ public class PlexPlayerHandler extends BaseThingHandler {
         this.foundInSession = foundInSession;
     }
 
+    public String getSessionKey() {
+        return currentSessionData.getSessionKey();
+    }
+
     /**
      * Called when this thing gets it's configuration changed.
      */
@@ -117,14 +121,26 @@ public class PlexPlayerHandler extends BaseThingHandler {
         currentSessionData.setThumb(sessionData.getThumb());
         currentSessionData.setArt(sessionData.getArt());
         currentSessionData.setLocal(sessionData.getPlayer().getLocal());
+        currentSessionData.setSessionKey(sessionData.getSessionKey());
         foundInSession = true;
         updateStatus(ThingStatus.ONLINE);
     }
 
     /**
+     * Update just the state, this status comes from the websocket.
+     *
+     * @param state - The state to update it to.
+     */
+    public synchronized void updateStateChannel(String state) {
+        currentSessionData.setState(PlexPlayerState.of(state));
+        updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_STATE),
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getState() : "Stopped")));
+    }
+
+    /**
      * Updates the channel states to match reality.
      */
-    public void updateChannels() {
+    public synchronized void updateChannels() {
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_STATE),
                 new StringType(String.valueOf(foundInSession ? currentSessionData.getState() : "Stopped")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_POWER),
