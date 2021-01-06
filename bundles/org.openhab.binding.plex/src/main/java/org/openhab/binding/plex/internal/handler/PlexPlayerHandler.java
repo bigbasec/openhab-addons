@@ -45,12 +45,9 @@ public class PlexPlayerHandler extends BaseThingHandler {
 
     private final Logger logger = LoggerFactory.getLogger(PlexPlayerHandler.class);
 
-    private String sessionKey1 = "";
-
     public PlexPlayerHandler(Thing thing) {
         super(thing);
         currentSessionData = new PlexSession();
-        currentSessionData.setSessionKey("");
     }
 
     /**
@@ -60,7 +57,6 @@ public class PlexPlayerHandler extends BaseThingHandler {
     @Override
     public void initialize() {
         PlexPlayerConfiguration config = getConfigAs(PlexPlayerConfiguration.class);
-        currentSessionData = new PlexSession();
         foundInSession = false;
         playerID = config.playerID;
         Bridge bridge = getBridge();

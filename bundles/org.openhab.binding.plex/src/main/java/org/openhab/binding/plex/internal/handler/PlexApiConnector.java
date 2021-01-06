@@ -18,11 +18,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Base64;
 import java.util.Properties;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.StringUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
@@ -62,12 +62,11 @@ public class PlexApiConnector {
     private static final String SIGNIN_URL = "https://plex.tv/users/sign_in.xml";
     private static final String CLIENT_ID = "928dcjhd-91ka-la91-md7a-0msnan214563";
     private static final String API_URL = "https://plex.tv/api/resources?includeHttps=1";
-    private WebSocketClient wsClient;
-    private PlexSocket PlexSocket;
+    private WebSocketClient wsClient = new WebSocketClient();
+    private PlexSocket PlexSocket = new PlexSocket();
     private final HttpClient httpClient;
-    private final PlexServerConfiguration connProps;
+
     private final Logger logger = LoggerFactory.getLogger(PlexApiConnector.class);
-    private CopyOnWriteArraySet<PlexUpdateListener> listeners = new CopyOnWriteArraySet<>();
     private @Nullable PlexUpdateListener listener;
 
     private final XStream xStream = new XStream(new StaxDriver());
@@ -78,12 +77,34 @@ public class PlexApiConnector {
     private @Nullable ScheduledExecutorService scheduler;
     private @Nullable URI uri;
 
-    public PlexApiConnector(PlexServerConfiguration connProps, HttpClient httpClient) {
-        this.connProps = connProps;
+    private String username = "";
+    private String password = "";
+    private String token = "";
+    private String host = "";
+    private int port = 0;
+    private String scheme = "";
+
+    public PlexApiConnector(HttpClient httpClient) {
         this.httpClient = httpClient;
+        setupXstream();
+    }
+
+    public void setParameters(PlexServerConfiguration connProps) {
+        username = connProps.getUsername();
+        password = connProps.getPassword();
+        token = connProps.getToken();
+        host = connProps.getHost();
+        port = connProps.getPort();
         wsClient = new WebSocketClient();
         PlexSocket = new PlexSocket();
-        setupXstream();
+    }
+
+    private String getSchemeWS() {
+        return scheme.equals("http") ? "ws" : "wss";
+    }
+
+    public boolean hasToken() {
+        return !StringUtils.isBlank(token);
     }
 
     /**
@@ -106,8 +127,7 @@ public class PlexApiConnector {
      */
     public @Nullable MediaContainer getSessionData() {
         try {
-            String url = "http://" + connProps.getHost() + ":" + String.valueOf(connProps.getPort())
-                    + "/status/sessions";
+            String url = "http://" + host + ":" + String.valueOf(port) + "/status/sessions";
             MediaContainer mediaContainer = doHttpRequest("POST", url, getClientHeaders(), MediaContainer.class);
             return mediaContainer;
         } catch (Exception e) {
@@ -123,8 +143,7 @@ public class PlexApiConnector {
      * @return the completed url that will be usable
      */
     public String getURL(String url) {
-        String artURL = connProps.getScheme() + "://" + connProps.getHost() + ":"
-                + String.valueOf(connProps.getPort() + url + "?X-Plex-Token=" + connProps.getToken());
+        String artURL = scheme + "://" + host + ":" + String.valueOf(port + url + "?X-Plex-Token=" + token);
         return artURL;
     }
 
@@ -136,14 +155,13 @@ public class PlexApiConnector {
     public boolean getToken() {
         try {
             String url = SIGNIN_URL;
-            String authString = Base64.getEncoder()
-                    .encodeToString((connProps.getUsername() + ":" + connProps.getPassword()).getBytes());
+            String authString = Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
             Properties headers = getClientHeaders();
             headers.put("Authorization", "Basic " + authString);
             User user = doHttpRequest("POST", url, headers, User.class);
             if (user != null) {
                 logger.debug("PLEX login successful using username/password");
-                connProps.setToken(user.getAuthenticationToken());
+                token = user.getAuthenticationToken();
                 return true;
             } else {
                 logger.warn("Invalid credentials for Plex account, please check config");
@@ -166,8 +184,8 @@ public class PlexApiConnector {
                 for (Device tmpDevice : api.getDevice()) {
                     if (tmpDevice.getConnection() != null) {
                         for (Connection tmpConn : tmpDevice.getConnection()) {
-                            if (connProps.host.equals(tmpConn.getAddress())) {
-                                connProps.setScheme(tmpConn.getProtocol());
+                            if (host.equals(tmpConn.getAddress())) {
+                                scheme = tmpConn.getProtocol();
                                 logger.debug(
                                         "Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
                                 return true;
@@ -225,8 +243,8 @@ public class PlexApiConnector {
         headers.put("X-Plex-Provides", "controller");
         headers.put("X-Plex-Platform", "Java");
         headers.put("X-Plex-Platform-Version", "JRE11");
-        if (connProps.hasToken()) {
-            headers.put(TOKEN_HEADER, connProps.getToken());
+        if (hasToken()) {
+            headers.put(TOKEN_HEADER, token);
         }
         return headers;
     }
@@ -264,8 +282,7 @@ public class PlexApiConnector {
         sslContextFactory.setEndpointIdentificationAlgorithm(null);
         try {
             wsClient = new WebSocketClient(sslContextFactory);
-            uri = new URI(connProps.getSchemeWS() + "://" + connProps.getHost()
-                    + ":32400/:/websockets/notifications?X-Plex-Token=" + connProps.getToken()); // WS_ENDPOINT_TOUCHWAND);
+            uri = new URI(getSchemeWS() + "://" + host + ":32400/:/websockets/notifications?X-Plex-Token=" + token); // WS_ENDPOINT_TOUCHWAND);
         } catch (URISyntaxException e) {
             logger.warn("URI not valid {} message {}", uri, e.getMessage());
             return;

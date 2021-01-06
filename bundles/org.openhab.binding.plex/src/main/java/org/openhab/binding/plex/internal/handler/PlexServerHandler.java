@@ -58,7 +58,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
     // Maintain mapping of handler and players
     private final Map<String, PlexPlayerHandler> playerHandlers = new ConcurrentHashMap<>();
 
-    private @Nullable PlexServerConfiguration plexConnectionProps;
+    private PlexServerConfiguration config = new PlexServerConfiguration();
     private @Nullable PlexApiConnector plexAPIConnector;
 
     private @Nullable ScheduledFuture<?> pollingJob;
@@ -76,15 +76,16 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
      */
     @Override
     public void initialize() {
-        PlexServerConfiguration config = getConfigAs(PlexServerConfiguration.class);
+        config = getConfigAs(PlexServerConfiguration.class);
+        plexAPIConnector = new PlexApiConnector(httpClient);
         if (config.host != null && !EMPTY.equals(config.host)) { // Check if a hostname is set
-            plexAPIConnector = new PlexApiConnector(config, httpClient);
+            plexAPIConnector.setParameters(config);
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
                     "Host must be specified, check configuration");
             return;
         }
-        if (EMPTY.equals(config.getToken())) {
+        if (!plexAPIConnector.hasToken()) {
             // No token is set by config, let's see if we can fetch one from username/password
             logger.debug("Token is not set, trying to fetch one");
             if ((EMPTY.equals(config.getUsername()) || EMPTY.equals(config.getPassword()))) {

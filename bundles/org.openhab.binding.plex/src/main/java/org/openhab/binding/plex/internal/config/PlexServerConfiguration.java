@@ -12,7 +12,6 @@
  */
 package org.openhab.binding.plex.internal.config;
 
-import org.apache.commons.lang.StringUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
@@ -72,21 +71,5 @@ public class PlexServerConfiguration {
 
     public void setPassword(String password) {
         this.password = password;
-    }
-
-    public String getScheme() {
-        return this.scheme;
-    }
-
-    public void setScheme(String scheme) {
-        this.scheme = scheme;
-    }
-
-    public String getSchemeWS() {
-        return this.scheme.equals("http") ? "ws" : "wss";
-    }
-
-    public boolean hasToken() {
-        return !StringUtils.isBlank(getToken());
     }
 }

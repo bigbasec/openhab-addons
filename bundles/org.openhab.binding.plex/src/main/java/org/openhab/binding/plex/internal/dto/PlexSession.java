@@ -47,7 +47,7 @@ public class PlexSession {
 
     private Date endTime;
 
-    private String sessionKey;
+    private String sessionKey = "";
 
     public String getSessionKey() {
         return sessionKey;
