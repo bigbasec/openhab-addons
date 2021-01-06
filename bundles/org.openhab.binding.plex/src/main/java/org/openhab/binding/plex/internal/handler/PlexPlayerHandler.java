@@ -45,9 +45,12 @@ public class PlexPlayerHandler extends BaseThingHandler {
 
     private final Logger logger = LoggerFactory.getLogger(PlexPlayerHandler.class);
 
+    private String sessionKey1 = "";
+
     public PlexPlayerHandler(Thing thing) {
         super(thing);
         currentSessionData = new PlexSession();
+        currentSessionData.setSessionKey("");
     }
 
     /**
@@ -93,6 +96,9 @@ public class PlexPlayerHandler extends BaseThingHandler {
     }
 
     public String getSessionKey() {
+        // if (currentSessionData != null) {
+        // return currentSessionData.getSessionKey();
+        // }
         return currentSessionData.getSessionKey();
     }
 

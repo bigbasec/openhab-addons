@@ -86,15 +86,15 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
         }
         if (EMPTY.equals(config.getToken())) {
             // No token is set by config, let's see if we can fetch one from username/password
-            logger.warn("Token is not set, trying to fetch one");
+            logger.debug("Token is not set, trying to fetch one");
             if ((EMPTY.equals(config.getUsername()) || EMPTY.equals(config.getPassword()))) {
-                logger.warn("Username, password and Token is not set, unable to connect to PLEX without. ");
+                logger.debug("Username, password and Token is not set, unable to connect to PLEX without. ");
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
                         "Username, password and Token is not set, unable to connect to PLEX without. ");
                 return;
             } else {
                 if (!plexAPIConnector.getToken()) {
-                    logger.warn("Token was not set.   Unable to login to PLEX with given username/password");
+                    logger.debug("Token was not set.   Unable to login to PLEX with given username/password");
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
                             "Token was not set.   Unable to login to PLEX with given username/password");
                     return;
@@ -102,15 +102,14 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             }
         }
         if (!plexAPIConnector.getApi()) {
-            logger.warn("Unable to fetch API, token may be wrong?  ");
+            logger.debug("Unable to fetch API, token may be wrong?  ");
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
                     "Unable to fetch API, token may be wrong?");
             return;
         }
-        onUpdate();
         plexAPIConnector.registerListener(this);
+        onUpdate();
         plexAPIConnector.connect();
-
     }
 
     /**
@@ -135,20 +134,20 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
      * keep track of things.
      */
     @Override
-    public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
-        String playerId = (String) childThing.getConfiguration().get(CONFIG_PLAYER_ID);
-        playerHandlers.put(playerId, (PlexPlayerHandler) childHandler);
-        logger.warn("Bridge: Monitor handler was initialized for {} with id {}", childThing.getUID(), playerId);
+    public synchronized void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
+        String playerID = (String) childThing.getConfiguration().get(CONFIG_PLAYER_ID);
+        playerHandlers.put(playerID, (PlexPlayerHandler) childHandler);
+        logger.warn("Bridge: Monitor handler was initialized for {} with id {}", childThing.getUID(), playerID);
     }
 
     /**
      * Called when a player has been removed from the system.
      */
     @Override
-    public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
-        String playerId = (String) childThing.getConfiguration().get(CONFIG_PLAYER_ID);
-        playerHandlers.remove(playerId);
-        logger.warn("Bridge: Monitor handler was disposed for {} with id {}", childThing.getUID(), playerId);
+    public synchronized void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
+        String playerID = (String) childThing.getConfiguration().get(CONFIG_PLAYER_ID);
+        playerHandlers.remove(playerID);
+        logger.warn("Bridge: Monitor handler was disposed for {} with id {}", childThing.getUID(), playerID);
     }
 
     /**
@@ -156,10 +155,14 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
      */
     @Override
     public void onItemStatusUpdate(String sessionKey, String state) {
-        for (Map.Entry<String, PlexPlayerHandler> entry : playerHandlers.entrySet()) {
-            if (entry.getValue().getSessionKey().equals(sessionKey)) {
-                entry.getValue().updateStateChannel(state);
+        try {
+            for (Map.Entry<String, PlexPlayerHandler> entry : playerHandlers.entrySet()) {
+                if (entry.getValue().getSessionKey().equals(sessionKey)) {
+                    entry.getValue().updateStateChannel(state);
+                }
             }
+        } catch (Exception e) {
+            logger.warn("Failed setting item status : {}", e.getMessage());
         }
     }
 
@@ -229,6 +232,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             MediaContainer plexSessionData = plexAPIConnector.getSessionData();
             if (plexSessionData != null) {
                 refreshStates(plexSessionData);
+
             }
             refreshAllPlayers();
             updateStatus(ThingStatus.ONLINE);

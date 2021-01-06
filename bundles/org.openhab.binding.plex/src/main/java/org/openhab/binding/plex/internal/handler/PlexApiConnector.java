@@ -106,7 +106,7 @@ public class PlexApiConnector {
      */
     public @Nullable MediaContainer getSessionData() {
         try {
-            String url = connProps.getScheme() + "://" + connProps.getHost() + ":" + String.valueOf(connProps.getPort())
+            String url = "http://" + connProps.getHost() + ":" + String.valueOf(connProps.getPort())
                     + "/status/sessions";
             MediaContainer mediaContainer = doHttpRequest("POST", url, getClientHeaders(), MediaContainer.class);
             return mediaContainer;
@@ -142,7 +142,7 @@ public class PlexApiConnector {
             headers.put("Authorization", "Basic " + authString);
             User user = doHttpRequest("POST", url, headers, User.class);
             if (user != null) {
-                logger.warn("PLEX login successful using username/password");
+                logger.debug("PLEX login successful using username/password");
                 connProps.setToken(user.getAuthenticationToken());
                 return true;
             } else {
@@ -259,8 +259,8 @@ public class PlexApiConnector {
     /**
      * Connect to the websocket
      */
-    public void connect() {
-        SslContextFactory sslContextFactory = new SslContextFactory();
+    public synchronized void connect() {
+        SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
         sslContextFactory.setEndpointIdentificationAlgorithm(null);
         try {
             wsClient = new WebSocketClient(sslContextFactory);
@@ -270,7 +270,6 @@ public class PlexApiConnector {
             logger.warn("URI not valid {} message {}", uri, e.getMessage());
             return;
         }
-
         // wsClient.setConnectTimeout(CONNECT_TIMEOUT_MS);
         wsClient.setConnectTimeout(2000);
         ClientUpgradeRequest request = new ClientUpgradeRequest();
@@ -293,12 +292,10 @@ public class PlexApiConnector {
         @OnWebSocketClose
         public void onClose(int statusCode, String reason) {
             logger.debug("Connection closed: {} - {}", statusCode, reason);
-
             if (!isShutDown) {
                 logger.debug("Plex websocket closed - reconnecting");
                 asyncWeb();
             }
-
         }
 
         @OnWebSocketConnect
@@ -329,13 +326,11 @@ public class PlexApiConnector {
 
         @OnWebSocketError
         public void onError(Throwable cause) {
-            logger.warn("WebSocket Error: {}", cause.getMessage());
-
+            logger.warn("WebSocket Error: {}", cause.getMessage(), cause);
             if (!isShutDown) {
                 logger.debug("WebSocket onError - reconnecting");
                 asyncWeb();
             }
-
         }
 
         private void asyncWeb() {
@@ -344,8 +339,6 @@ public class PlexApiConnector {
                 socketReconnect = scheduler.schedule(PlexApiConnector.this::connect, 5, TimeUnit.SECONDS); // WEBSOCKET_RECONNECT_INTERVAL_SEC,
 
             }
-
         }
     }
-
 }

@@ -145,9 +145,6 @@ public class NotificationContainer {
             public void setState(String state) {
                 this.state = state;
             }
-
         }
-
     }
-
 }
