@@ -59,9 +59,8 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
     private final Map<String, PlexPlayerHandler> playerHandlers = new ConcurrentHashMap<>();
 
     private PlexServerConfiguration config = new PlexServerConfiguration();
-    private @Nullable PlexServerHandler bridge;
-    private @Nullable PlexApiConnector plexAPIConnector;
-    private List<String> availablePlayers = new ArrayList();
+    // private @Nullable PlexServerHandler bridge;
+    private PlexApiConnector plexAPIConnector;
 
     private @Nullable ScheduledFuture<?> pollingJob;
 
@@ -69,7 +68,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
 
     public PlexServerHandler(Bridge bridge, PlexStateDescriptionOptionProvider stateDescriptionProvider) {
         super(bridge);
-        availablePlayers.clear();
+        plexAPIConnector = new PlexApiConnector(scheduler);
         this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
@@ -80,8 +79,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
     @Override
     public void initialize() {
         config = getConfigAs(PlexServerConfiguration.class);
-        plexAPIConnector = new PlexApiConnector(scheduler);
-        if (config.host != null && !EMPTY.equals(config.host)) { // Check if a hostname is set
+        if (!EMPTY.equals(config.host)) { // Check if a hostname is set
             plexAPIConnector.setParameters(config);
         } else {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -111,12 +109,9 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
                     "Unable to fetch API, token may be wrong?");
             return;
         }
-        // plexAPIConnector.registerListener(this);
-        // onUpdate();
-        // plexAPIConnector.connect();
         isRunning = true;
-        onUpdate();
-        scheduler.execute(() -> {
+        onUpdate(); // Start the session refresh
+        scheduler.execute(() -> { // Start the web socket
             synchronized (this) {
                 if (isRunning) {
                     PlexApiConnector localSockets = plexAPIConnector = new PlexApiConnector(scheduler);
@@ -126,7 +121,6 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
                 }
             }
         });
-
     }
 
     /**
@@ -153,13 +147,15 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
      * @return
      */
     public List<String> getAvailablePlayers() {
-        List<String> availablePlayers = new ArrayList();
+        List<String> availablePlayers = new ArrayList<String>();
         MediaContainer sessionData = plexAPIConnector.getSessionData();
-        if (sessionData.getSize() > 0) {
-            for (Video tmpMeta : sessionData.getVideo()) {
-                if (playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()) == null) {
-                    if (tmpMeta.getPlayer().getLocal().equals("1")) {
-                        availablePlayers.add(tmpMeta.getPlayer().getMachineIdentifier());
+        if (sessionData != null) {
+            if (sessionData.getSize() > 0) {
+                for (Video tmpMeta : sessionData.getVideo()) {
+                    if (playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()) == null) {
+                        if (tmpMeta.getPlayer().getLocal().equals("1")) {
+                            availablePlayers.add(tmpMeta.getPlayer().getMachineIdentifier());
+                        }
                     }
                 }
             }
@@ -221,7 +217,6 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             playerCount++;
             valueIterator.next().setFoundInSession(false);
         }
-        availablePlayers.clear();
         if (sessionData != null) {
             if (sessionData.getSize() > 0) { // Cover condition where nothing is playing
                 for (Video tmpMeta : sessionData.getVideo()) { // Roll through Video objects looking for machineID

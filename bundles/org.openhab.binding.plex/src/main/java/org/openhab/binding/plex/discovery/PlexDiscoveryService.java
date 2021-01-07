@@ -10,12 +10,9 @@ import org.openhab.core.config.discovery.DiscoveryResult;
 import org.openhab.core.config.discovery.DiscoveryResultBuilder;
 import org.openhab.core.thing.ThingTypeUID;
 import org.openhab.core.thing.ThingUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PlexDiscoveryService extends AbstractDiscoveryService {
     private final PlexServerHandler bridgeHandler;
-    private final Logger logger = LoggerFactory.getLogger(PlexDiscoveryService.class);
 
     public PlexDiscoveryService(PlexServerHandler bridgeHandler) {
         super(PlexBindingConstants.SUPPORTED_THING_TYPES_UIDS, 10, false);
@@ -24,18 +21,18 @@ public class PlexDiscoveryService extends AbstractDiscoveryService {
 
     @Override
     protected void startScan() {
-        for (String tmpStr : bridgeHandler.getAvailablePlayers()) {
+        for (String machineId : bridgeHandler.getAvailablePlayers()) {
             ThingUID bridgeUID = bridgeHandler.getThing().getUID();
             ThingTypeUID thingTypeUID = PlexBindingConstants.UID_PLAYER;
-            ThingUID playerThingUid = new ThingUID(PlexBindingConstants.UID_PLAYER, bridgeUID, tmpStr);
+            ThingUID playerThingUid = new ThingUID(PlexBindingConstants.UID_PLAYER, bridgeUID, machineId);
 
             Map<String, Object> properties = new HashMap<>();
-            properties.put(PlexBindingConstants.CONFIG_PLAYER_ID, tmpStr);
+            properties.put(PlexBindingConstants.CONFIG_PLAYER_ID, machineId);
 
             DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(playerThingUid).withThingType(thingTypeUID)
                     .withProperties(properties).withBridge(bridgeUID)
                     .withRepresentationProperty(PlexBindingConstants.CONFIG_PLAYER_ID)
-                    .withLabel("Plex Player Thing (" + tmpStr + ")").build();
+                    .withLabel("Plex Player Thing (" + machineId + ")").build();
 
             thingDiscovered(discoveryResult);
         }

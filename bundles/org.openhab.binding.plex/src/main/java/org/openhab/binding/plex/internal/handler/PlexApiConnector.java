@@ -178,21 +178,18 @@ public class PlexApiConnector {
         try {
             String url = API_URL;
             MediaContainer api = doHttpRequest("GET", url, getClientHeaders(), MediaContainer.class);
-            if (api != null) {
-                for (Device tmpDevice : api.getDevice()) {
-                    if (tmpDevice.getConnection() != null) {
-                        for (Connection tmpConn : tmpDevice.getConnection()) {
-                            if (host.equals(tmpConn.getAddress())) {
-                                scheme = tmpConn.getProtocol();
-                                logger.debug(
-                                        "Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
-                                return true;
-                            }
+            for (Device tmpDevice : api.getDevice()) {
+                if (tmpDevice.getConnection() != null) {
+                    for (Connection tmpConn : tmpDevice.getConnection()) {
+                        if (host.equals(tmpConn.getAddress())) {
+                            scheme = tmpConn.getProtocol();
+                            logger.debug("Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
+                            return true;
                         }
                     }
                 }
-                return false;
             }
+            return false;
         } catch (Exception e) {
             logger.warn("An exception occurred while fetching API :'{}:{}'", e.getMessage(), e);
         }
@@ -352,8 +349,9 @@ public class PlexApiConnector {
         private void asyncWeb() {
             ScheduledFuture<?> mySocketReconnect = socketReconnect;
             if (mySocketReconnect == null || mySocketReconnect.isDone()) {
-                socketReconnect = scheduler.schedule(PlexApiConnector.this::connect, 5, TimeUnit.SECONDS); // WEBSOCKET_RECONNECT_INTERVAL_SEC,
-
+                if (scheduler != null) {
+                    socketReconnect = scheduler.schedule(PlexApiConnector.this::connect, 5, TimeUnit.SECONDS); // WEBSOCKET_RECONNECT_INTERVAL_SEC,
+                }
             }
         }
     }

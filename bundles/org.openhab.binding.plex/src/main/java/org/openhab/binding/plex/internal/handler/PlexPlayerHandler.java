@@ -60,6 +60,7 @@ public class PlexPlayerHandler extends BaseThingHandler {
         foundInSession = false;
         playerID = config.playerID;
         Bridge bridge = getBridge();
+        logger.debug("Initializing PLEX player : {}", playerID);
         ThingStatus bridgeStatus = bridge != null ? bridge.getStatus() : null;
         boolean bridgeOnline = bridgeStatus == ThingStatus.ONLINE;
         if (bridgeOnline) {
@@ -91,10 +92,12 @@ public class PlexPlayerHandler extends BaseThingHandler {
         this.foundInSession = foundInSession;
     }
 
+    /**
+     * Returns the session key from the current player
+     *
+     * @return
+     */
     public String getSessionKey() {
-        // if (currentSessionData != null) {
-        // return currentSessionData.getSessionKey();
-        // }
         return currentSessionData.getSessionKey();
     }
 
