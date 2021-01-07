@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.websocket.api.Session;
@@ -64,7 +63,6 @@ public class PlexApiConnector {
     private static final String API_URL = "https://plex.tv/api/resources?includeHttps=1";
     private WebSocketClient wsClient = new WebSocketClient();
     private PlexSocket PlexSocket = new PlexSocket();
-    private final HttpClient httpClient;
 
     private final Logger logger = LoggerFactory.getLogger(PlexApiConnector.class);
     private @Nullable PlexUpdateListener listener;
@@ -84,8 +82,8 @@ public class PlexApiConnector {
     private int port = 0;
     private String scheme = "";
 
-    public PlexApiConnector(HttpClient httpClient) {
-        this.httpClient = httpClient;
+    public PlexApiConnector(ScheduledExecutorService scheduler) {
+        this.scheduler = scheduler;
         setupXstream();
     }
 
@@ -277,9 +275,10 @@ public class PlexApiConnector {
     /**
      * Connect to the websocket
      */
-    public synchronized void connect() {
+    public void connect() {
         SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
         sslContextFactory.setEndpointIdentificationAlgorithm(null);
+        logger.debug("Connecting to WebSocket");
         try {
             wsClient = new WebSocketClient(sslContextFactory);
             uri = new URI(getSchemeWS() + "://" + host + ":32400/:/websockets/notifications?X-Plex-Token=" + token); // WS_ENDPOINT_TOUCHWAND);
@@ -291,6 +290,7 @@ public class PlexApiConnector {
         wsClient.setConnectTimeout(2000);
         ClientUpgradeRequest request = new ClientUpgradeRequest();
         try {
+            isShutDown = false;
             wsClient.start();
             wsClient.connect(PlexSocket, uri, request);
         } catch (IOException e) {
@@ -304,7 +304,7 @@ public class PlexApiConnector {
     /**
      * PlexSocket class to handle the websocket connection to the PLEX server
      */
-    @WebSocket(maxIdleTime = 10000) // WEBSOCKET_IDLE_TIMEOUT_MS)
+    @WebSocket(maxIdleTime = 360000) // WEBSOCKET_IDLE_TIMEOUT_MS)
     public class PlexSocket {
         @OnWebSocketClose
         public void onClose(int statusCode, String reason) {
@@ -343,7 +343,6 @@ public class PlexApiConnector {
 
         @OnWebSocketError
         public void onError(Throwable cause) {
-            logger.warn("WebSocket Error: {}", cause.getMessage(), cause);
             if (!isShutDown) {
                 logger.debug("WebSocket onError - reconnecting");
                 asyncWeb();

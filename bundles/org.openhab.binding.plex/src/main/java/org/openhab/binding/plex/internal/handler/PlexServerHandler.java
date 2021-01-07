@@ -15,7 +15,9 @@ package org.openhab.binding.plex.internal.handler;
 import static org.openhab.binding.plex.internal.PlexBindingConstants.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -23,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.jetty.client.HttpClient;
 import org.openhab.binding.plex.internal.PlexBindingConstants;
 import org.openhab.binding.plex.internal.PlexStateDescriptionOptionProvider;
 import org.openhab.binding.plex.internal.config.PlexServerConfiguration;
@@ -52,21 +53,23 @@ import org.slf4j.LoggerFactory;
 public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateListener {
 
     private final Logger logger = LoggerFactory.getLogger(PlexServerHandler.class);
-    private final HttpClient httpClient;
     private final PlexStateDescriptionOptionProvider stateDescriptionProvider;
 
     // Maintain mapping of handler and players
     private final Map<String, PlexPlayerHandler> playerHandlers = new ConcurrentHashMap<>();
 
     private PlexServerConfiguration config = new PlexServerConfiguration();
+    private @Nullable PlexServerHandler bridge;
     private @Nullable PlexApiConnector plexAPIConnector;
+    private List<String> availablePlayers = new ArrayList();
 
     private @Nullable ScheduledFuture<?> pollingJob;
 
-    public PlexServerHandler(Bridge thing, HttpClient httpClient,
-            PlexStateDescriptionOptionProvider stateDescriptionProvider) {
-        super(thing);
-        this.httpClient = httpClient;
+    private volatile boolean isRunning = false;
+
+    public PlexServerHandler(Bridge bridge, PlexStateDescriptionOptionProvider stateDescriptionProvider) {
+        super(bridge);
+        availablePlayers.clear();
         this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
@@ -77,7 +80,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
     @Override
     public void initialize() {
         config = getConfigAs(PlexServerConfiguration.class);
-        plexAPIConnector = new PlexApiConnector(httpClient);
+        plexAPIConnector = new PlexApiConnector(scheduler);
         if (config.host != null && !EMPTY.equals(config.host)) { // Check if a hostname is set
             plexAPIConnector.setParameters(config);
         } else {
@@ -108,9 +111,22 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
                     "Unable to fetch API, token may be wrong?");
             return;
         }
-        plexAPIConnector.registerListener(this);
+        // plexAPIConnector.registerListener(this);
+        // onUpdate();
+        // plexAPIConnector.connect();
+        isRunning = true;
         onUpdate();
-        plexAPIConnector.connect();
+        scheduler.execute(() -> {
+            synchronized (this) {
+                if (isRunning) {
+                    PlexApiConnector localSockets = plexAPIConnector = new PlexApiConnector(scheduler);
+                    localSockets.setParameters(config);
+                    localSockets.registerListener(this);
+                    localSockets.connect();
+                }
+            }
+        });
+
     }
 
     /**
@@ -128,6 +144,27 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             logger.debug("No such channel for UID {}", channelUID);
             return;
         }
+    }
+
+    /**
+     * Gets a list of all the players currently being used w/ a status of local. This
+     * is used for discovery only.
+     *
+     * @return
+     */
+    public List<String> getAvailablePlayers() {
+        List<String> availablePlayers = new ArrayList();
+        MediaContainer sessionData = plexAPIConnector.getSessionData();
+        if (sessionData.getSize() > 0) {
+            for (Video tmpMeta : sessionData.getVideo()) {
+                if (playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()) == null) {
+                    if (tmpMeta.getPlayer().getLocal().equals("1")) {
+                        availablePlayers.add(tmpMeta.getPlayer().getMachineIdentifier());
+                    }
+                }
+            }
+        }
+        return availablePlayers;
     }
 
     /**
@@ -184,6 +221,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             playerCount++;
             valueIterator.next().setFoundInSession(false);
         }
+        availablePlayers.clear();
         if (sessionData != null) {
             if (sessionData.getSize() > 0) { // Cover condition where nothing is playing
                 for (Video tmpMeta : sessionData.getVideo()) { // Roll through Video objects looking for machineID
@@ -246,6 +284,7 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
     @Override
     public void dispose() {
         logger.debug("Disposing PLEX Bridge Handler.");
+        isRunning = false;
         plexAPIConnector.dispose();
         if (pollingJob != null && !pollingJob.isCancelled()) {
             pollingJob.cancel(true);
