@@ -151,16 +151,16 @@ public class PlexPlayerHandler extends BaseThingHandler {
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_POWER),
                 new StringType(String.valueOf(foundInSession ? "ON" : "OFF")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_TITLE),
-                new StringType(String.valueOf(currentSessionData.getTitle())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getTitle() : "")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_TYPE),
-                new StringType(String.valueOf(currentSessionData.getType())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getType() : "")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_ART),
-                new StringType(String.valueOf(currentSessionData.getArt())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getArt() : "")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_THUMB),
-                new StringType(String.valueOf(currentSessionData.getThumb())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getThumb() : "")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_PROGRESS),
-                new StringType(String.valueOf(currentSessionData.getProgress())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getProgress() : "0")));
         updateState(new ChannelUID(getThing().getUID(), PlexBindingConstants.CHANNEL_PLAYER_ENDTIME),
-                new StringType(String.valueOf(currentSessionData.getEndTime())));
+                new StringType(String.valueOf(foundInSession ? currentSessionData.getEndTime() : "")));
     }
 }
