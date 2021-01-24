@@ -82,7 +82,9 @@
     <module>org.openhab.binding.amazonechocontrol</module>
         
     <module>org.openhab.binding.ambientweather</module>
-        
+
+    <module>org.openhab.binding.androiddebugbridge</module>
+
     <module>org.openhab.binding.astro</module>
         
     <module>org.openhab.binding.atlona</module>
@@ -118,7 +120,9 @@
     <module>org.openhab.binding.bluetooth.ruuvitag</module>
         
     <module>org.openhab.binding.boschindego</module>
-        
+  
+    <module>org.openhab.binding.boschshc</module>
+  
     <module>org.openhab.binding.bosesoundtouch</module>
         
     <module>org.openhab.binding.bsblan</module>
@@ -228,7 +232,9 @@
     <module>org.openhab.binding.groheondus</module>
         
     <module>org.openhab.binding.harmonyhub</module>
-        
+
+    <module>org.openhab.binding.haywardomnilogic</module>
+
     <module>org.openhab.binding.hdanywhere</module>
         
     <module>org.openhab.binding.hdpowerview</module>
@@ -418,7 +424,9 @@
     <module>org.openhab.binding.ojelectronics</module>
         
     <module>org.openhab.binding.omnikinverter</module>
-        
+
+    <module>org.openhab.binding.omnilink</module>
+
     <module>org.openhab.binding.onebusaway</module>
         
     <module>org.openhab.binding.onewiregpio</module>
@@ -482,7 +490,9 @@
     <module>org.openhab.binding.rme</module>
         
     <module>org.openhab.binding.robonect</module>
-        
+
+    <module>org.openhab.binding.roku</module>
+
     <module>org.openhab.binding.rotel</module>
         
     <module>org.openhab.binding.russound</module>
