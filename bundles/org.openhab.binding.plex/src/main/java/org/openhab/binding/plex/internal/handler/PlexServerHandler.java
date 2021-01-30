@@ -266,10 +266,13 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
             MediaContainer plexSessionData = plexAPIConnector.getSessionData();
             if (plexSessionData != null) {
                 refreshStates(plexSessionData);
-
+                updateStatus(ThingStatus.ONLINE);
+            } else {
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
+                        "Plex is not returning valid session data");
             }
             refreshAllPlayers();
-            updateStatus(ThingStatus.ONLINE);
+
         } catch (Exception e) {
             logger.warn("An exception occurred while polling the PLEX Server: '{}'", e.getMessage());
             updateStatus(ThingStatus.OFFLINE);
