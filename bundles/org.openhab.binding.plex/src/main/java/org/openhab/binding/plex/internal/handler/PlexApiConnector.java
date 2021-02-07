@@ -125,8 +125,8 @@ public class PlexApiConnector {
      */
     public @Nullable MediaContainer getSessionData() {
         try {
-            String url = "http://" + host + ":" + String.valueOf(port) + "/status/sessions";
-            MediaContainer mediaContainer = doHttpRequest("POST", url, getClientHeaders(), MediaContainer.class);
+            String url = "http://" + host + ":" + String.valueOf(port) + "/status/sessions" + "?X-Plex-Token=" + token;
+            MediaContainer mediaContainer = doHttpRequest("GET", url, getClientHeaders(), MediaContainer.class);
             return mediaContainer;
         } catch (Exception e) {
             logger.warn("An exception occurred while polling the PLEX Server: '{}'", e.getMessage());
