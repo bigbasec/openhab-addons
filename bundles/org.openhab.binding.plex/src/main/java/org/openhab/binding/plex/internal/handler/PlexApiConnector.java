@@ -80,7 +80,7 @@ public class PlexApiConnector {
     private String token = "";
     private String host = "";
     private int port = 0;
-    private String scheme = "";
+    private static String scheme = "";
 
     public PlexApiConnector(ScheduledExecutorService scheduler) {
         this.scheduler = scheduler;
@@ -125,7 +125,8 @@ public class PlexApiConnector {
      */
     public @Nullable MediaContainer getSessionData() {
         try {
-            String url = "http://" + host + ":" + String.valueOf(port) + "/status/sessions" + "?X-Plex-Token=" + token;
+            String url = "http://" + host + ":" + String.valueOf(port) + "/status/sessions" + "?X-Plex-Token="
+                    + token;
             MediaContainer mediaContainer = doHttpRequest("GET", url, getClientHeaders(), MediaContainer.class);
             return mediaContainer;
         } catch (Exception e) {
@@ -183,7 +184,8 @@ public class PlexApiConnector {
                     for (Connection tmpConn : tmpDevice.getConnection()) {
                         if (host.equals(tmpConn.getAddress())) {
                             scheme = tmpConn.getProtocol();
-                            logger.debug("Plex Api fetched.  Found configured PLEX server in Api request, applied. ");
+                            logger.debug(
+                                    "Plex Api fetched.  Found configured PLEX server in Api request, applied. Protocol used : {}",scheme);
                             return true;
                         }
                     }
