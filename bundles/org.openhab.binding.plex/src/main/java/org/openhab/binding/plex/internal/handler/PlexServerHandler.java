@@ -224,7 +224,12 @@ public class PlexServerHandler extends BaseBridgeHandler implements PlexUpdateLi
                                                                                                   // configured, update
                                                                                                   // it
                         tmpMeta.setArt(plexAPIConnector.getURL(tmpMeta.getArt()));
-                        tmpMeta.setThumb(plexAPIConnector.getURL(tmpMeta.getThumb()));
+                        if (tmpMeta.getType().equals("episode")) {
+                            tmpMeta.setThumb(plexAPIConnector.getURL(tmpMeta.getGrandparentThumb()));
+                            tmpMeta.setTitle(tmpMeta.getGrandparentTitle() + " : " + tmpMeta.getTitle());
+                        } else {
+                            tmpMeta.setThumb(plexAPIConnector.getURL(tmpMeta.getThumb()));    
+                        }
                         playerHandlers.get(tmpMeta.getPlayer().getMachineIdentifier()).refreshSessionData(tmpMeta);
                         playerActiveCount++;
                     }

@@ -57,6 +57,10 @@ public class MediaContainer {
         @XStreamAsAttribute
         private String art;
         @XStreamAsAttribute
+        private String grandparentThumb;
+        @XStreamAsAttribute
+        private String grandparentTitle;
+        @XStreamAsAttribute
         private long viewOffset;
         @XStreamAsAttribute
         private String type;
@@ -67,6 +71,22 @@ public class MediaContainer {
         @XStreamAlias("Player")
         private Player player;
 
+        public String getGrandparentThumb() {
+            return this.grandparentThumb;
+        }
+
+        public void setGrandparentThumb(String grandparentThumb) {
+            this.grandparentThumb = grandparentThumb;
+        }
+
+        public String getGrandparentTitle() {
+            return this.grandparentTitle;
+        }
+
+        public void setGrandparentTitle(String grandparentTitle) {
+            this.grandparentTitle = grandparentTitle;
+        }
+        
         public Media getMedia() {
             return this.media;
         }
